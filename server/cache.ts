@@ -2,13 +2,14 @@
 import NodeCache from 'node-cache';
 
 const cache = new NodeCache({
-  stdTTL: 600, // 10 minute cache
-  checkperiod: 120
+  stdTTL: 600,
+  checkperiod: 120,
+  useClones: false
 });
 
-export const cacheMiddleware = (duration: number) => {
+export const cacheMiddleware = (duration: number, keyGenerator?: (req: any) => string) => {
   return (req: any, res: any, next: any) => {
-    const key = req.originalUrl;
+    const key = keyGenerator ? keyGenerator(req) : `${req.method}-${req.originalUrl}`;
     const cachedResponse = cache.get(key);
 
     if (cachedResponse) {
@@ -22,6 +23,15 @@ export const cacheMiddleware = (duration: number) => {
     };
     next();
   };
+};
+
+export const clearCache = (pattern: string) => {
+  const keys = cache.keys();
+  keys.forEach(key => {
+    if (key.includes(pattern)) {
+      cache.del(key);
+    }
+  });
 };
 
 export default cache;

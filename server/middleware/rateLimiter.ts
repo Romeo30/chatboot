@@ -1,28 +1,41 @@
 
 import { Request, Response, NextFunction } from 'express';
 
-const requestCounts = new Map<string, { count: number; resetTime: number }>();
-const WINDOW_MS = 15 * 60 * 1000; // 15 minute
-const MAX_REQUESTS = 100;
+class RateLimiter {
+  private requestCounts: Map<string, { count: number; resetTime: number }>;
+  private readonly windowMs: number;
+  private readonly maxRequests: number;
+
+  constructor(windowMs = 15 * 60 * 1000, maxRequests = 100) {
+    this.requestCounts = new Map();
+    this.windowMs = windowMs;
+    this.maxRequests = maxRequests;
+  }
+
+  check(ip: string): boolean {
+    const now = Date.now();
+    const requestData = this.requestCounts.get(ip) || { count: 0, resetTime: now + this.windowMs };
+
+    if (now > requestData.resetTime) {
+      requestData.count = 0;
+      requestData.resetTime = now + this.windowMs;
+    }
+
+    requestData.count++;
+    this.requestCounts.set(ip, requestData);
+
+    return requestData.count <= this.maxRequests;
+  }
+}
+
+const limiter = new RateLimiter();
 
 export const rateLimiter = (req: Request, res: Response, next: NextFunction) => {
-  const ip = req.ip;
-  const now = Date.now();
-  const requestData = requestCounts.get(ip) || { count: 0, resetTime: now + WINDOW_MS };
-
-  if (now > requestData.resetTime) {
-    requestData.count = 0;
-    requestData.resetTime = now + WINDOW_MS;
-  }
-
-  requestData.count++;
-  requestCounts.set(ip, requestData);
-
-  if (requestData.count > MAX_REQUESTS) {
+  if (!limiter.check(req.ip)) {
     return res.status(429).json({
-      error: 'Too many requests, please try again later.'
+      error: 'Too many requests, please try again later.',
+      retryAfter: Math.ceil((limiter.windowMs) / 1000)
     });
   }
-
   next();
 };
