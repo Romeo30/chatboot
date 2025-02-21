@@ -7,7 +7,13 @@ const cache = new NodeCache({
   useClones: false
 });
 
-export const cacheMiddleware = (duration: number, keyGenerator?: (req: any) => string) => {
+export interface CacheOptions {
+  duration: number;
+  keyGenerator?: (req: any) => string;
+  staleWhileRevalidate?: boolean;
+}
+
+export const cacheMiddleware = (options: CacheOptions) => {
   return (req: any, res: any, next: any) => {
     const key = keyGenerator ? keyGenerator(req) : `${req.method}-${req.originalUrl}`;
     const cachedResponse = cache.get(key);
